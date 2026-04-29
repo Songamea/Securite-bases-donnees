@@ -1,28 +1,58 @@
-🛡️ Labo de Sécurité : SQL Injection & RBAC
-Ce projet est une application web de démonstration conçue pour illustrer les risques d'injection SQL dans une interface d'authentification et l'efficacité des politiques de moindre privilège (RBAC) avec PostgreSQL.
+**Labo de Sécurité — Injection SQL & RBAC**
 
-📋 Fonctionnalités
-Contournement d'authentification : Tester des injections SQL pour se connecter sans mot de passe.
+Description
+- Projet pédagogique : démonstration des risques d'injection SQL dans une interface d'authentification et vérification de la séparation des privilèges (RBAC) avec PostgreSQL.
 
-Visualisation en temps réel : Affichage de la requête SQL générée par le serveur.
+Principales fonctionnalités
+- Contournement d'authentification (scénarios d'injection SQL).
+- Affichage de la requête SQL construite pour faciliter l'analyse pédagogique.
+- Tests RBAC : simulation d'opérations protégées (ex. DELETE) pour observer les permissions PostgreSQL.
 
-Audit RBAC : Bouton de test pour vérifier si les droits de l'utilisateur de l'application sont correctement restreints.
+Prérequis
+- Python 3.8+ (ou équivalent)
+- PostgreSQL
+- (Optionnel) Docker & Docker Compose
 
-🛠️ Installation et Configuration
-1. Prérequis
-Python 3.x
+Installation (locale)
+1. Créez et activez un environnement virtuel :
 
-PostgreSQL
+```bash
+python -m venv .venv
+source .venv/bin/activate   # macOS / Linux
+.venv\Scripts\activate     # Windows
+```
 
-Bibliothèques Python :
+2. Installez les dépendances :
 
-Bash
-pip install flask psycopg2
-2. Configuration de la Base de Données
-Exécutez le script SQL suivant dans votre terminal psql ou via pgAdmin pour créer la structure et les rôles :
+```bash
+pip install -r requirements.txt
+```
 
-SQL
--- Création de la table
+Si `requirements.txt` n'existe pas, installez au minimum :
+
+```bash
+pip install flask psycopg2-binary
+```
+
+Configuration
+- Modifiez la configuration de la base de données dans `app.py` (variable `db_config`) pour pointer vers votre instance PostgreSQL :
+
+```python
+db_config = {
+        "dbname": "votre_base",
+        "user": "app_user",
+        "password": "votre_mot_de_passe",
+        "host": "localhost",
+        "port": "5432"
+}
+```
+
+Initialisation de la base
+- Exécutez les scripts SQL dans `init-scripts/` (si fournis) ou créez la table `users` et les rôles nécessaires.
+
+Exemple minimal :
+
+```sql
 CREATE TABLE users (
     id SERIAL PRIMARY KEY,
     username VARCHAR(50) UNIQUE NOT NULL,
@@ -33,62 +63,62 @@ CREATE TABLE users (
     role VARCHAR(20)
 );
 
--- Insertion de données de test
-INSERT INTO users (username, password, nom, prenom, email, role) 
+INSERT INTO users (username, password, nom, prenom, email, role)
 VALUES ('admin', 'admin123', 'Leuba', 'Léo', 'admin@lab.com', 'Directeur');
 
--- Configuration du RBAC
 CREATE ROLE app_user WITH LOGIN PASSWORD 'votre_mot_de_passe';
 GRANT USAGE ON SCHEMA public TO app_user;
-GRANT SELECT, INSERT, UPDATE ON users TO app_user; 
--- Note : app_user n'a PAS le droit de DELETE
-3. Configuration de l'Application
-Modifiez le dictionnaire db_config dans app.py avec vos accès :
+GRANT SELECT, INSERT, UPDATE ON users TO app_user;
+-- Ne pas accorder DELETE si l'on veut démontrer RBAC
+```
 
-Python
-db_config = {
-    "dbname": "votre_base",
-    "user": "app_user",
-    "password": "votre_mot_de_passe",
-    "host": "localhost",
-    "port": "5432"
-}
-🚀 Utilisation
-Lancez le serveur :
+Exécution
+- Local (développement) :
 
-Bash
+```bash
 python app.py
-Ouvrez votre navigateur sur http://127.0.0.1:5000.
+# puis ouvrir http://127.0.0.1:5000
+```
 
-🧪 Scénarios de Test
-A. Attaque par Injection SQL (Contournement de Login)
-Pour se connecter en tant qu'administrateur sans connaître son mot de passe :
+- Avec Docker :
 
-Username : admin' --
+```bash
+docker-compose up --build
+```
 
-Password : (Laissez vide ou n'importe quoi)
+Scénarios de test (pédagogiques)
+- Contournement de login (commentaire SQL) :
 
-Explication : Le -- commente la vérification du mot de passe dans la requête SQL.
+    - Username : `admin' --`
+    - Password : (vide)
 
-B. Attaque "Always True"
-Username : admin
+    Explication : le `--` commente le reste de la requête, neutralisant la vérification du mot de passe.
 
-Password : ' OR '1'='1
+- Condition "always true" :
 
-Explication : La condition '1'='1' étant toujours vraie, le moteur SQL autorise la connexion.
+    - Username : `admin`
+    - Password : `' OR '1'='1`
 
-C. Test de Résilience (RBAC)
-Cliquez sur le bouton "Lancer le test de suppression".
+    Explication : l'expression `'1'='1'` est toujours vraie, donc la condition d'authentification peut être contournée si les entrées ne sont pas paramétrées.
 
-L'application tentera d'exécuter DELETE FROM users.
+- Test RBAC (suppression) :
 
-Résultat attendu : Une erreur PostgreSQL InsufficientPrivilege s'affiche, prouvant que même si une injection permet de lancer la commande, la base de données bloque l'action.
+    - Cliquez sur le test de suppression dans l'interface.
+    - Résultat attendu : PostgreSQL renvoie une erreur `insufficient_privilege` si l'utilisateur de l'application n'a pas le droit `DELETE`.
 
-📂 Structure du Projet
-Plaintext
-.
-├── app.py              # Serveur Flask et logique SQL
-├── templates/
-│   └── index.html      # Interface utilisateur (Bootstrap)
-└── README.md           # Ce fichier
-⚠️ Avertissement : Ce projet est à but pédagogique uniquement. Ne jamais utiliser de requêtes formatées avec des f-strings (f"...") dans une application réelle. Utilisez toujours des requêtes paramétrées.
+Structure du projet
+- [app.py](app.py) — serveur Flask et logique d'accès aux données
+- [docker-compose.yml](docker-compose.yml) — orchestration Docker (si fournie)
+- [dockerfile](dockerfile) — image Docker (si fournie)
+- [init-scripts/](init-scripts/) — scripts SQL d'initialisation (si présents)
+- [templates/index.html](templates/index.html) — interface utilisateur
+- [README.md](README.md) — documentation (ce fichier)
+
+Avertissement important
+- Ce projet est strictement pédagogique. N'utilisez jamais de concaténation de chaînes ou de f-strings pour construire des requêtes SQL dans une application réelle. Utilisez systématiquement des requêtes paramétrées (prepared statements) ou des ORM sécurisés.
+
+Contribuer
+- Vous pouvez ouvrir une issue ou proposer une pull request pour améliorer les scénarios, ajouter des tests ou corriger la documentation.
+
+Licence
+- (Indiquez la licence de votre choix ici)
