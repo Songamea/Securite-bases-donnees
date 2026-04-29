@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Labo Sécurité SQL - Master 1</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #121212; color: #e0e0e0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .card { background-color: #1e1e1e; border: 1px solid #333; border-radius: 12px; margin-bottom: 20px; }
+        .card-header { border-bottom: 1px solid #333; font-weight: bold; }
+        .sql-query { background-color: #000; color: #00ff00; padding: 10px; border-radius: 5px; font-family: monospace; font-size: 0.85rem; }
+        .result-success { border-left: 5px solid #28a745; background: #1a2e1d; padding: 15px; border-radius: 4px; }
+        .result-error { border-left: 5px solid #dc3545; background: #2d1a1c; padding: 15px; border-radius: 4px; }
+        .badge-role { font-size: 0.9rem; }
+    </style>
+</head>
+<body>
+
+<div class="container py-5">
+    <div class="text-center mb-5">
+        <h1 class="display-5 text-warning">🛡️ Dashboard Sécurité Database</h1>
+        <p class="text-muted">Test d'Injection SQL et Gestion des Rôles (RBAC)</p>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-6">
+            <div class="card shadow">
+                <div class="card-header text-info">🔐 Test d'Authentification (Vunérable)</div>
+                <div class="card-body">
+                    <p class="small text-muted">Tentez de bypasser le login sans connaître le mot de passe.</p>
+                    
+                    <form action="/login" method="POST">
+                        <div class="mb-3">
+                            <label class="form-label small">Nom d'utilisateur</label>
+                            <input type="text" name="username" class="form-control bg-dark text-white border-secondary" placeholder="Ex: admin' --" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small">Mot de passe</label>
+                            <input type="text" name="password" class="form-control bg-dark text-white border-secondary" placeholder="N'importe quoi...">
+                        </div>
+                        <button type="submit" class="btn btn-info w-100 fw-bold">Se connecter</button>
+                    </form>
+
+                    {% if query %}
+                    <div class="mt-4">
+                        <label class="small text-muted">Requête SQL générée côté serveur :</label>
+                        <div class="sql-query text-break">{{ query }}</div>
+                    </div>
+                    {% endif %}
+
+                    <div class="mt-4">
+                        {% if user %}
+                            <div class="result-success">
+                                <h5 class="text-success text-center">🔓 Accès Autorisé !</h5>
+                                <hr class="border-secondary">
+                                <p class="mb-1"><strong>Utilisateur :</strong> {{ user[0] }}</p>
+                                <p class="mb-1"><strong>Identité :</strong> {{ user[2] }} {{ user[1] }}</p>
+                                <p class="mb-0"><strong>Rôle assigné :</strong> <span class="badge bg-primary badge-role">{{ user[3] }}</span></p>
+                            </div>
+                        {% elif request.path == '/login' and not error %}
+                            <div class="alert alert-danger text-center">❌ Identifiants incorrects</div>
+                        {% endif %}
+
+                        {% if error and request.path == '/login' %}
+                            <div class="result-error mt-2">
+                                <strong class="text-danger">Erreur SQL :</strong><br>
+                                <small>{{ error }}</small>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-6">
+            <div class="card shadow border-danger">
+                <div class="card-header text-danger">🛡️ Défense : Moindre Privilège</div>
+                <div class="card-body">
+                    <p class="small text-muted">Même si l'injection réussit, l'utilisateur <strong>app_user</strong> ne doit pas pouvoir détruire la base.</p>
+                    
+                    <div class="p-3 bg-dark rounded mb-4 border border-secondary">
+                        <h6 class="text-warning mb-2">Scénario de test :</h6>
+                        <p class="small mb-0">L'API tente d'exécuter un <code>DELETE</code> sur la table des utilisateurs en utilisant le compte de l'application.</p>
+                    </div>
+
+                    <form action="/test-rbac" method="POST">
+                        <button type="submit" class="btn btn-outline-danger w-100">Lancer une tentative de suppression</button>
+                    </form>
+
+                    {% if rbac_status %}
+                    <div class="mt-4 p-3 text-center rounded border {{ 'border-success' if '✅' in rbac_status else 'border-warning' }}" style="background: #111;">
+                        <h6 class="text-muted small uppercase mb-2">Verdict du moteur PostgreSQL :</h6>
+                        <div class="h5 {{ 'text-success' if '✅' in rbac_status else 'text-danger' }}">
+                            {{ rbac_status }}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="card shadow mt-4">
+                <div class="card-header text-warning small">Rôles configurés en base</div>
+                <div class="card-body p-0">
+                    <table class="table table-dark table-sm mb-0 small">
+                        <thead>
+                            <tr>
+                                <th class="ps-3">Rôle</th>
+                                <th>Droits</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td class="ps-3">Directeur</td><td>FULL ACCESS</td></tr>
+                            <tr><td class="ps-3 text-info">Conseiller</td><td>SELECT / INSERT / UPDATE</td></tr>
+                            <tr><td class="ps-3">Analyste</td><td>SELECT ONLY</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <footer class="text-center mt-5 text-muted small">
+        Labo Sécurité - Master 1 &bull; 2026
+    </footer>
+</div>
+
+</body>
+</html>
